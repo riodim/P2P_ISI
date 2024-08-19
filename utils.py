@@ -2,26 +2,33 @@
 
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
 
 def generate_qam_symbols(num_symbols, M):
-    # Calculate the number of points along each axis
+    # Calculate the number of points along each axis (sqrt_M should be an integer)
     sqrt_M = int(np.sqrt(M))
     
-    # Generate all possible combinations of psi and zeta
+    # Generate all possible psi and zeta values symmetrically around zero
     psi = np.arange(-(sqrt_M - 1), sqrt_M, 2)
     zeta = np.arange(-(sqrt_M - 1), sqrt_M, 2)
     
     # Create a grid of the combinations
-    Re_ck_j, Im_ck_j = np.meshgrid(psi, zeta)
+    Re_ck_j_grid, Im_ck_j_grid = np.meshgrid(psi, zeta)
     
-    # Flatten the grids and combine to create all possible symbols
-    Re_ck_j = Re_ck_j.flatten()
-    Im_ck_j = Im_ck_j.flatten()
+    # Calculate Delta for normalization
+    Delta = np.sqrt(2 * (M - 1) / 3)
+    
+    # Compute the real and imaginary parts according to the provided formulas
+    Re_ck_j = Re_ck_j_grid / Delta
+    Im_ck_j = Im_ck_j_grid / Delta
     
     # Combine real and imaginary parts to form complex symbols
     symbols = Re_ck_j + 1j * Im_ck_j
     
-    # Randomly choose num_symbols from the 64-QAM symbols
+    # Flatten the symbols grid to get M symbols
+    symbols = symbols.flatten()
+    
+    # Randomly choose num_symbols from the generated symbols
     chosen_indices = np.random.choice(len(symbols), num_symbols, replace=True)
     symbols = symbols[chosen_indices]
     
@@ -30,8 +37,6 @@ def generate_qam_symbols(num_symbols, M):
     symbols /= normalization_factor
     
     return symbols
-
-import matplotlib.pyplot as plt
 
 def plot_constellation(symbols, file_name=None):
     plt.figure(figsize=(6, 6))
@@ -84,16 +89,6 @@ def MSE_sampling_ISI(mu, b, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, IS
     y_ISI_total_imag = y_ISI_imag + y_rec_imag
 
     return y_ISI_total_real, y_ISI_total_imag
-        
-def calculate_mse_with_isi(K, mu, bk, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, ISI_channels, sample_time, T, dnn_out, batch_size, device, y_target_real, y_target_imag):
-    y_ISI_total_real, y_ISI_total_imag = MSE_sampling_ISI(K, mu, bk, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, ISI_channels, sample_time, T, dnn_out, batch_size, device)
-    
-    mse_real = torch.mean(torch.square(y_ISI_total_real - y_target_real))
-    mse_imag = torch.mean(torch.square(y_ISI_total_imag - y_target_imag))
-    
-    mse_total = mse_real + mse_imag
-    
-    return mse_total
 
 """
 Calculates the pmf given the distribution of the sync error and depending on the 
@@ -116,3 +111,16 @@ def pmf_extract(num_points,mu,var_sample,num_err_samples,samples):
         
     pdf = torch.tensor(pdf/num_err_samples)
     return pdf
+
+def generate_h(simRuns):
+    # Initialize h_data array to store channel gains for all runs
+    h_data = np.zeros(simRuns, dtype=np.float32)
+
+    for m in range(simRuns):
+        # Generate channel gain h using a Rayleigh fading model
+        h = (1/np.sqrt(2)) * (np.random.randn(1) + 1j * np.random.randn(1))
+        
+        # Since K=1, take the magnitude of the single complex channel gain
+        h_data[m] = np.abs(h).item()
+
+    return h_data

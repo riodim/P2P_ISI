@@ -16,8 +16,16 @@ def prepare_dataloader(num_symbols, M, P, batch_size):
 
     x_real = np.real(qam_symbols)
     x_imag = np.imag(qam_symbols)
-    h = np.random.randn(num_symbols)
-    inputs = np.vstack((np.random.uniform(0, np.sqrt(P), num_symbols), h, x_real, x_imag)).T
+
+    # Generate h values using Rayleigh fading model
+    h_data = utils.generate_h(num_symbols)  # Correctly generates num_symbols elements
+
+    # Ensure b_tensor is computed for each symbol
+    h_tensor = torch.tensor(h_data, dtype=torch.float32)
+    b_tensor = torch.where(1/h_tensor < torch.sqrt(torch.tensor(P, dtype=torch.float32)), 1/h_tensor, torch.sqrt(torch.tensor(P, dtype=torch.float32)))
+
+    # Ensure all arrays have the correct size before stacking
+    inputs = np.vstack((b_tensor.numpy(), h_data, x_real, x_imag)).T
     inputs_tensor = torch.tensor(inputs, dtype=torch.float32)
     dataset = TensorDataset(inputs_tensor)
     return DataLoader(dataset, batch_size=batch_size, shuffle=True)
@@ -46,7 +54,6 @@ def train(model, dataloader, optimizer, loss_function, num_epochs, device, P, mu
             batch = batch[0].to(device)
             optimizer.zero_grad()
             output = model(batch)
-
             # Simulate ISI symbols and channels
             ISI_symbols_real = torch.tensor(np.random.uniform(-np.sqrt(3), np.sqrt(3), (batch_size, mu-1)), device=device).float()
             ISI_symbols_imag = torch.tensor(np.random.uniform(-np.sqrt(3), np.sqrt(3), (batch_size, mu-1)), device=device).float()
@@ -70,8 +77,8 @@ def test(model, dataloader, loss_function, device, P, mu, num_points, prob, M_sy
             batch = batch[0].to(device)
             output = model(batch)
 
-            h = batch[:, 1]
-            b = torch.where(1/h < torch.sqrt(torch.tensor(P, device=device)), 1/h, torch.sqrt(torch.tensor(P, device=device)))
+            #h = batch[:, 1]
+            #b = torch.where(1/h < torch.sqrt(torch.tensor(P, device=device)), 1/h, torch.sqrt(torch.tensor(P, device=device)))
             # print(f'Test Batch b values: {b}') 
 
             # Simulate ISI symbols and channels
@@ -92,19 +99,19 @@ def main():
     mu = 7
     P = 10
     batch_size = 100
-    learning_rate = 0.01
+    learning_rate = 2e-3
     num_epochs = 2
 
     # Define MSE parameters
-    M_sym = 2.3*10**1
-    M_power = 9*10**1
-    M_bandwidth = 15
-    
+    M_sym = 4.3*10**3
+    M_power = 9*10**3
+    M_bandwidth = 10**1.35
+        
     # delta_gap = torch.tensor([0.0002, 0.0005, 0.0008, 0.0013, 0.0008, 0.0005, 0.0002])
     freq_resp = 0.2
     pul_power = 10
 
-    dataloader = prepare_dataloader(num_symbols=100000, M=64, P=P, batch_size=batch_size)
+    dataloader = prepare_dataloader(num_symbols=10000, M=64, P=P, batch_size=batch_size)
     model, optimizer, scheduler = prepare_model(input_size=4, output_size=1, hidden_layers=[64, 64, 64], learning_rate=learning_rate, device=device)
     loss_function = prepare_loss_function()
 

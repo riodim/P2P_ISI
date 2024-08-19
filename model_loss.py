@@ -9,7 +9,7 @@ import utils as utils
 
 #OTA Pulse Model
 class OTAPulse(nn.Module):
-    def __init__(self,input_size,output_size,hidden_layers):
+    def __init__(self, input_size, output_size, hidden_layers):
         super(OTAPulse, self).__init__()
         self.fc1 = nn.Linear(input_size, hidden_layers[0])
         self.relu1 = nn.ReLU()
@@ -27,7 +27,8 @@ class OTAPulse(nn.Module):
         nn.init.xavier_uniform_(self.fc3.weight)
         nn.init.xavier_uniform_(self.fc4.weight)
 
-    def forward(self,x):
+    def forward(self, x):
+
         x1 = self.fc1(x)
         x2 = self.relu1(x1)
 
@@ -38,7 +39,7 @@ class OTAPulse(nn.Module):
         x6 = self.relu3(x5)
 
         x7 = self.fc4(x6)
-        
+
         return x7
 
 
@@ -68,15 +69,17 @@ class ISI_loss_function(nn.Module):
                 P,
                 test_bool=False,
                 ):
-        # import pdb
-        # pdb.set_trace()
 
         # Data related attributes from inputs 
         x_real = x_real.view(batch_size, 1)
         x_imag = x_imag.view(batch_size, 1)
-        h = inputs[:, 0:1]  
+
+        # Extract h from inputs and ensure it's positive
+        h = inputs[:, 0:1]
+
+        # Compute b and clamp its values to be within the valid range
         b = torch.where(1/h < torch.sqrt(torch.tensor(P, device=device)), 1/h, torch.sqrt(torch.tensor(P, device=device)))
-    
+        
         loss = torch.tensor(0.0, device=device, requires_grad=True) 
          
         mid_sample = np.floor(num_points / 2).astype(int)
