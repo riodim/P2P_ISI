@@ -78,10 +78,10 @@ class ISI_loss_function(nn.Module):
 
         # Extract h and b from inputs
         h = inputs[:, 1:2]
-
+        print(h)
         sqrt_P = torch.sqrt(torch.tensor(P, dtype=torch.float32, device=device))
         b = torch.where(1/h < sqrt_P, 1/h, sqrt_P)
-
+        print(b)
         if torch.any(b <= 0):
             raise ValueError("b contains non-positive values, which could lead to invalid operations.")
 

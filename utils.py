@@ -117,11 +117,11 @@ def pmf_extract(num_points, mu, var_sample, num_err_samples, samples):
     
     return pdf
 
-def generate_h(simRuns):
+def generate_h(num_points):
     # Initialize h_data array to store channel gains for all runs
-    h_data = np.zeros(simRuns, dtype=np.float32)  # Ensure it has 'simRuns' elements
+    h_data = np.zeros(num_points, dtype=np.float32)  # Ensure it has 'simRuns' elements
 
-    for m in range(simRuns):
+    for m in range(num_points):
         # Generate channel gain h using a Rayleigh fading model
         h = (1/np.sqrt(2)) * (np.random.randn(1) + 1j * np.random.randn(1))
         
