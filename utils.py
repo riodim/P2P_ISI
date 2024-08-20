@@ -66,15 +66,18 @@ def MSE_sampling_ISI(mu, b, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, IS
     for w2 in range(mu):
         dnn_out_index = sample_time + (w2 - num_ISI) * 2 * T
         if dnn_out_index >= dnn_out.size(1) or dnn_out_index < 0:
-            #print(f"Skipping out-of-bounds index {dnn_out_index}")
             continue  # Skip if the index is out of bounds
         
         if w2 != num_ISI:
-            dnn_out_val = dnn_out[:, dnn_out_index].unsqueeze(1)  # Shape [100, 1]
-            
-            ISI_channel_current = ISI_channels[:, index].view(1, -1).expand(batch_size, -1)  # Shape [100, 6]
-            x_ISI_real_current = x_ISI_real[:, index].unsqueeze(-1)  # Shape [100, 1]
-            x_ISI_imag_current = x_ISI_imag[:, index].unsqueeze(-1)  # Shape [100, 1]
+            dnn_out_val = dnn_out[:, dnn_out_index].unsqueeze(1)
+
+            if index < ISI_channels.size(1):
+                ISI_channel_current = ISI_channels[:, index].view(1, -1).expand(batch_size, -1)
+            else:
+                ISI_channel_current = ISI_channels[:, 0].view(1, -1).expand(batch_size, -1)
+
+            x_ISI_real_current = x_ISI_real[:, index].unsqueeze(-1)
+            x_ISI_imag_current = x_ISI_imag[:, index].unsqueeze(-1)
                         
             y_ISI_real += (b * ISI_channel_current * x_ISI_real_current * dnn_out_val).sum(dim=1)
             y_ISI_imag += (b * ISI_channel_current * x_ISI_imag_current * dnn_out_val).sum(dim=1)
@@ -94,27 +97,29 @@ def MSE_sampling_ISI(mu, b, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, IS
 Calculates the pmf given the distribution of the sync error and depending on the 
 number of points taken on the time instances of the pulse we wish to create.
 """
-def pmf_extract(num_points,mu,var_sample,num_err_samples,samples):
-    
-    error_samples = np.random.normal(0,var_sample,num_err_samples).astype(np.float32)
+def pmf_extract(num_points, mu, var_sample, num_err_samples, samples):
+    error_samples = np.random.normal(0, var_sample, num_err_samples).astype(np.float32)
 
-    pdf = np.zeros(num_points,dtype=np.float32)
+    pdf = np.zeros(num_points, dtype=np.float32)
     counter_sam = 0
+
     while counter_sam < num_err_samples:
         dist = np.abs(samples - error_samples[counter_sam])
         ind = np.argmin(dist)
-        if ind < np.floor(num_points/2) + np.floor(num_points/mu) and ind > np.floor(num_points/2) - np.floor(num_points/mu):
+
+        if ind < np.floor(num_points / 2) + np.floor(num_points / mu) and ind > np.floor(num_points / 2) - np.floor(num_points / mu):
             pdf[ind] = pdf[ind] + 1
             counter_sam = counter_sam + 1
         else:
-            error_samples[counter_sam] = var_sample*np.random.randn(1)
+            error_samples[counter_sam] = var_sample * np.random.randn(1)
         
-    pdf = torch.tensor(pdf/num_err_samples)
+    pdf = torch.tensor(pdf / num_err_samples)
+    
     return pdf
 
 def generate_h(simRuns):
     # Initialize h_data array to store channel gains for all runs
-    h_data = np.zeros(simRuns, dtype=np.float32)
+    h_data = np.zeros(simRuns, dtype=np.float32)  # Ensure it has 'simRuns' elements
 
     for m in range(simRuns):
         # Generate channel gain h using a Rayleigh fading model
@@ -124,3 +129,19 @@ def generate_h(simRuns):
         h_data[m] = np.abs(h).item()
 
     return h_data
+
+def calculate_b(simRuns, P, h_data):
+    b_data = np.zeros(simRuns, dtype=np.float32)
+    sqrt_P = np.sqrt(P)
+
+    for m in range(simRuns):
+        h = h_data[m]
+
+        if 1/h < sqrt_P:
+            b = 1/h
+        else:
+            b = sqrt_P
+
+        b_data[m] = b
+
+    return b_data
