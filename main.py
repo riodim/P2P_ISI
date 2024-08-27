@@ -1,3 +1,4 @@
+import time
 import torch
 import numpy as np
 import utils as utils
@@ -84,6 +85,7 @@ def train(
     scheduler,
 ):
     for epoch in range(num_epochs):
+        start_time = time.time()  # Start the timer for the epoch
         total_loss = 0
         for batch_idx, batch in enumerate(dataloader):
             print(f"Processing batch {batch_idx + 1}/{len(dataloader)}")
@@ -140,8 +142,8 @@ def train(
             total_loss += loss.item()
 
         scheduler.step()
-
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item()}")
+        epoch_time = time.time() - start_time
+        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item()}, Time: {epoch_time:.2f} seconds")
 
 
 def test(
