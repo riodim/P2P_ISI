@@ -57,40 +57,27 @@ def plot_constellation(symbols, file_name=None):
 def MSE_sampling_ISI(mu, b, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, ISI_channels, sample_time, T, dnn_out, batch_size, device):
     num_ISI = np.floor(mu / 2).astype(int)
 
-    y_ISI_real = torch.zeros(batch_size).to(device)
-    y_ISI_imag = torch.zeros(batch_size).to(device)
-    y_rec_real = torch.zeros(batch_size).to(device)
-    y_rec_imag = torch.zeros(batch_size).to(device)
-    b_expanded = b.unsqueeze(1)
+    y_ISI_real = torch.zeros(batch_size, 1).to(device)
+    y_ISI_imag = torch.zeros(batch_size, 1).to(device)
+    y_rec_real = torch.zeros(batch_size, 1).to(device)
+    y_rec_imag = torch.zeros(batch_size, 1).to(device)
+
     index = 0
-    for w2 in range(mu):
-        dnn_out_index = sample_time + (w2 - num_ISI) * 2 * T
-        if dnn_out_index >= dnn_out.size(1) or dnn_out_index < 0:
-            continue  # Skip if the index is out of bounds
-        
+    for w2 in range(mu):        
         if w2 != num_ISI:
-            dnn_out_val = dnn_out[:, dnn_out_index].unsqueeze(1)
 
-            if index < ISI_channels.size(1):
-                ISI_channel_current = ISI_channels[:, index].view(1, -1).expand(batch_size, -1)
-            else:
-                ISI_channel_current = ISI_channels[:, 0].view(1, -1).expand(batch_size, -1)
+            y_ISI_real = y_ISI_real + b*ISI_channels[:,index]*x_ISI_real[:,index]*(dnn_out[:,sample_time+(w2-num_ISI)*2*T].unsqueeze(1)).repeat(1,1)
+            y_ISI_imag = y_ISI_imag + b*ISI_channels[:,index]*x_ISI_imag[:,index]*(dnn_out[:,sample_time+(w2-num_ISI)*2*T].unsqueeze(1)).repeat(1,1)
 
-            x_ISI_real_current = x_ISI_real[:, index].unsqueeze(-1)
-            x_ISI_imag_current = x_ISI_imag[:, index].unsqueeze(-1)
-                                    
-            y_ISI_real += (b_expanded * ISI_channel_current * x_ISI_real_current * dnn_out_val).sum(dim=1)
-            y_ISI_imag += (b_expanded * ISI_channel_current * x_ISI_imag_current * dnn_out_val).sum(dim=1)            
-            index += 1
         else:
-            dnn_out_val = dnn_out[:, sample_time].unsqueeze(1)
-            y_rec_real = b_expanded * channels * x_real * dnn_out_val.squeeze(1)
-            y_rec_imag = b_expanded * channels * x_imag * dnn_out_val.squeeze(1)
+            y_rec_real = b*channels*x_real*(dnn_out[:,sample_time].unsqueeze(1))
+            y_rec_imag = b*channels*x_imag*(dnn_out[:,sample_time].unsqueeze(1))
 
     y_ISI_total_real = y_ISI_real + y_rec_real
     y_ISI_total_imag = y_ISI_imag + y_rec_imag
 
     return y_ISI_total_real, y_ISI_total_imag
+
 
 """
 Calculates the pmf given the distribution of the sync error and depending on the 
@@ -117,14 +104,11 @@ def pmf_extract(num_points, mu, var_sample, num_err_samples, samples):
     return pdf
 
 def generate_h(num_points):
-    # Initialize h_data array to store channel gains for all runs
-    h_data = np.zeros(num_points, dtype=np.float32)  # Ensure it has 'simRuns' elements
+    h_data = np.zeros(num_points, dtype=np.float32)  
 
     for m in range(num_points):
-        # Generate channel gain h using a Rayleigh fading model
         h = (1/np.sqrt(2)) * (np.random.randn(1) + 1j * np.random.randn(1))
         
-        # Since K=1, take the magnitude of the single complex channel gain
         h_data[m] = np.abs(h).item()
 
     return h_data

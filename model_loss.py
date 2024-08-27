@@ -40,7 +40,7 @@ class OTAPulse(nn.Module):
         x6 = self.relu3(x5)
 
         x7 = self.fc4(x6)
-        x7 = torch.sigmoid(x7)
+        # x7 = torch.sigmoid(x7)
 
         return x7
 
@@ -68,7 +68,6 @@ class ISI_loss_function(nn.Module):
         M_bandwidth,
         pul_power,
         freq_resp,
-        P,
         test_bool=False,
     ):
         b = batch[:,0]
@@ -109,14 +108,14 @@ class ISI_loss_function(nn.Module):
             y_total_real = y_signal_real + noise
             y_total_imag = y_signal_imag + noise
 
-            # Adjust indexing for prob to avoid out-of-bounds errors
             prob_index = sample_time % prob.size(
                 0
-            )  # Adjusting sample_time to fit within prob's size
+            )  
+
+            # loss = loss + prob[sample_time] * (torch.mean(torch.square(y_total_real - y_target_real))  + torch.mean(torch.square(y_total_imag - y_target_imag)))
 
             # Calculate the loss using the adjusted prob index
-            loss = loss + prob[prob_index] * (torch.mean(torch.square(y_total_real - y_target_real))  + torch.mean(torch.square(y_total_imag - y_target_imag))
-            )
+            loss = loss + prob[prob_index] * (torch.mean(torch.square(y_total_real - y_target_real))  + torch.mean(torch.square(y_total_imag - y_target_imag)))
 
             if not test_bool:
                 loss = (

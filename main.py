@@ -72,7 +72,6 @@ def train(
     loss_function,
     num_epochs,
     device,
-    P,
     mu,
     num_points,
     prob,
@@ -86,24 +85,25 @@ def train(
 ):
     for epoch in range(num_epochs):
         total_loss = 0
-        for batch in dataloader:
+        for batch_idx, batch in enumerate(dataloader):
+            print(f"Processing batch {batch_idx + 1}/{len(dataloader)}")
+
             batch = batch[0].to(device)
             optimizer.zero_grad()
             output = model(batch)
 
             # Simulate ISI symbols and channels
-            ISI_symbols_real = (
-                -torch.sqrt(torch.tensor(3.0))
-                + 2 * torch.sqrt(torch.tensor(3.0)) * torch.rand((batch_size, mu - 1))
-            ).to(device)
-            ISI_symbols_imag = (
-                -torch.sqrt(torch.tensor(3.0))
-                + 2 * torch.sqrt(torch.tensor(3.0)) * torch.rand((batch_size, mu - 1))
-            ).to(device)
-            ISI_channels = (
-                torch.sqrt(torch.tensor(1 / 2.0)) * torch.randn((mu - 1, 1))
-            ).to(device)
+            ISI_symbols_indices = torch.randint(0, batch_size, (batch_size, mu - 1)).to(device)
+            ISI_symbols_real = batch[ISI_symbols_indices, 2].to(device)  # Select from the real part
+            ISI_symbols_imag = batch[ISI_symbols_indices, 3].to(device)  # Select from the imaginary part
             
+            ISI_channels = torch.tensor(utils.generate_h(num_points=batch_size * (mu - 1)), dtype=torch.float32).to(device)
+            ISI_channels = ISI_channels.view(batch_size, mu-1) 
+
+            # print("ISI_symbols_real shape:", ISI_symbols_real.shape)
+            # print("ISI_symbols_imag shape:", ISI_symbols_imag.shape)
+            # print("ISI_channels shape:", ISI_channels.shape)     
+
             noise = torch.randn(batch_size, device=device)
 
             loss = loss_function(
@@ -123,7 +123,6 @@ def train(
                 M_bandwidth=M_bandwidth,
                 pul_power=pul_power,
                 freq_resp=freq_resp,
-                P=P,
             )
             loss = loss.mean()
 
@@ -155,14 +154,16 @@ def test(
     model.eval()  # Set model to evaluation mode
     total_loss = 0
     with torch.no_grad():  # Disable gradient calculation for testing
-        for batch in dataloader:
+        for batch_idx, batch in dataloader:
+            print(f"Processing batch {batch_idx + 1}/{len(dataloader)}")
             batch = batch[0].to(device)
             output = model(batch)
 
             # Simulate ISI symbols and channels
             ISI_symbols_real = (-torch.sqrt(torch.tensor(3.0)) + 2 * torch.sqrt(torch.tensor(3.0)) * torch.rand((batch_size, mu - 1))).to(device)
             ISI_symbols_imag = (-torch.sqrt(torch.tensor(3.0)) + 2 * torch.sqrt(torch.tensor(3.0)) * torch.rand((batch_size, mu - 1))).to(device)
-            ISI_channels = (torch.sqrt(torch.tensor(1 / 2.0)) * torch.randn((mu - 1, 1))).to(device)
+            
+            ISI_channels = utils.generate_h(num_points=10000)
             noise = torch.randn(batch_size, device=device)
 
             loss = loss_function(
@@ -205,9 +206,9 @@ def main():
     num_epochs = 5
 
     # Define MSE parameters
-    M_sym = 1.3 * 10**2
-    M_power = 1 * 10
-    M_bandwidth = 12
+    M_sym = 43
+    M_power = 90
+    M_bandwidth = 6.31
 
     freq_resp = 0.2
     pul_power = 10
@@ -245,7 +246,6 @@ def main():
         loss_function,
         num_epochs,
         device,
-        P,
         mu,
         num_points,
         prob,
