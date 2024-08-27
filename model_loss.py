@@ -53,10 +53,9 @@ class ISI_loss_function(nn.Module):
     def forward(
         self,
         batch_size,
-        inputs,
+        dnn_out,
         mu,
-        x_real,
-        x_imag,
+        batch,
         ISI_symbols_real,
         ISI_symbols_imag,
         ISI_channels,
@@ -72,25 +71,17 @@ class ISI_loss_function(nn.Module):
         P,
         test_bool=False,
     ):
-        # Data related attributes from inputs
-        x_real = x_real.view(batch_size, 1)
-        x_imag = x_imag.view(batch_size, 1)
-
-        # Extract h and b from inputs
-        h = inputs[:, 1:2]
-        print(h)
-        sqrt_P = torch.sqrt(torch.tensor(P, dtype=torch.float32, device=device))
-        b = torch.where(1/h < sqrt_P, 1/h, sqrt_P)
-        print(b)
-        if torch.any(b <= 0):
-            raise ValueError("b contains non-positive values, which could lead to invalid operations.")
+        b = batch[:,0]
+        h = batch[:,1]
+        x_real = batch[:,2].view(batch_size,1)
+        x_imag = batch[:,3].view(batch_size,1)
 
         loss = torch.tensor(0.0, device=device, requires_grad=True)
 
         mid_sample = np.floor(num_points / 2).astype(int)
         T = np.floor(np.floor(num_points / mu) / 2).astype(int)
 
-        cur_pulse = torch.nn.functional.pad(inputs, (0, 6500, 0, 0))
+        cur_pulse = torch.nn.functional.pad(dnn_out, (0, 6500, 0, 0))
 
         fft_cur_pulse = torch.abs(torch.fft.fft(cur_pulse, dim=1))
 
@@ -109,7 +100,7 @@ class ISI_loss_function(nn.Module):
                 ISI_channels=ISI_channels,
                 sample_time=sample_time,
                 T=T,
-                dnn_out=inputs,
+                dnn_out=dnn_out,
                 batch_size=batch_size,
                 device=device,
             )
@@ -130,8 +121,8 @@ class ISI_loss_function(nn.Module):
             if not test_bool:
                 loss = (
                     loss
-                    + self.calculate_loss_sym(M_sym, mid_sample, inputs)
-                    + self.calculate_loss_power(M_power, num_points, pul_power, inputs)
+                    + self.calculate_loss_sym(M_sym, mid_sample, dnn_out)
+                    + self.calculate_loss_power(M_power, num_points, pul_power, dnn_out)
                     + self.calculate_loss_bandwidth(M_bandwidth, fft_cur_pulse, freq_resp)
                 )
 

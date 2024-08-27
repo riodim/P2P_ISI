@@ -61,7 +61,7 @@ def MSE_sampling_ISI(mu, b, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, IS
     y_ISI_imag = torch.zeros(batch_size).to(device)
     y_rec_real = torch.zeros(batch_size).to(device)
     y_rec_imag = torch.zeros(batch_size).to(device)
-
+    b_expanded = b.unsqueeze(1)
     index = 0
     for w2 in range(mu):
         dnn_out_index = sample_time + (w2 - num_ISI) * 2 * T
@@ -78,15 +78,14 @@ def MSE_sampling_ISI(mu, b, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, IS
 
             x_ISI_real_current = x_ISI_real[:, index].unsqueeze(-1)
             x_ISI_imag_current = x_ISI_imag[:, index].unsqueeze(-1)
-                        
-            y_ISI_real += (b * ISI_channel_current * x_ISI_real_current * dnn_out_val).sum(dim=1)
-            y_ISI_imag += (b * ISI_channel_current * x_ISI_imag_current * dnn_out_val).sum(dim=1)
-            
+                                    
+            y_ISI_real += (b_expanded * ISI_channel_current * x_ISI_real_current * dnn_out_val).sum(dim=1)
+            y_ISI_imag += (b_expanded * ISI_channel_current * x_ISI_imag_current * dnn_out_val).sum(dim=1)            
             index += 1
         else:
             dnn_out_val = dnn_out[:, sample_time].unsqueeze(1)
-            y_rec_real = b * channels * x_real * dnn_out_val.squeeze(1)
-            y_rec_imag = b * channels * x_imag * dnn_out_val.squeeze(1)
+            y_rec_real = b_expanded * channels * x_real * dnn_out_val.squeeze(1)
+            y_rec_imag = b_expanded * channels * x_imag * dnn_out_val.squeeze(1)
 
     y_ISI_total_real = y_ISI_real + y_rec_real
     y_ISI_total_imag = y_ISI_imag + y_rec_imag

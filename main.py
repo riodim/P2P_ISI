@@ -103,14 +103,14 @@ def train(
             ISI_channels = (
                 torch.sqrt(torch.tensor(1 / 2.0)) * torch.randn((mu - 1, 1))
             ).to(device)
+            
             noise = torch.randn(batch_size, device=device)
 
             loss = loss_function(
                 batch_size=batch_size,
-                inputs=output,
+                dnn_out=output,
                 mu=mu,
-                x_real=batch[:, 2],
-                x_imag=batch[:, 3],
+                batch = batch, 
                 ISI_symbols_real=ISI_symbols_real,
                 ISI_symbols_imag=ISI_symbols_imag,
                 ISI_channels=ISI_channels,
@@ -128,9 +128,6 @@ def train(
             loss = loss.mean()
 
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                model.parameters(), max_norm=1.0
-            )  # Gradient clipping
             optimizer.step()
 
             total_loss += loss.item()
