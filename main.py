@@ -93,16 +93,24 @@ def train(
             output = model(batch)
 
             # Simulate ISI symbols and channels
-            ISI_symbols_indices = torch.randint(0, batch_size, (batch_size, mu - 1)).to(device)
-            ISI_symbols_real = batch[ISI_symbols_indices, 2].to(device)  # Select from the real part
-            ISI_symbols_imag = batch[ISI_symbols_indices, 3].to(device)  # Select from the imaginary part
-            
-            ISI_channels = torch.tensor(utils.generate_h(num_points=batch_size * (mu - 1)), dtype=torch.float32).to(device)
-            ISI_channels = ISI_channels.view(batch_size, mu-1) 
+            ISI_symbols_indices = torch.randint(0, batch_size, (batch_size, mu - 1)).to(
+                device
+            )
+            ISI_symbols_real = batch[ISI_symbols_indices, 2].to(
+                device
+            )  # Select from the real part
+            ISI_symbols_imag = batch[ISI_symbols_indices, 3].to(
+                device
+            )  # Select from the imaginary part
+
+            ISI_channels = torch.tensor(
+                utils.generate_h(num_points=batch_size * (mu - 1)), dtype=torch.float32
+            ).to(device)
+            ISI_channels = ISI_channels.view(batch_size, mu - 1)
 
             # print("ISI_symbols_real shape:", ISI_symbols_real.shape)
             # print("ISI_symbols_imag shape:", ISI_symbols_imag.shape)
-            # print("ISI_channels shape:", ISI_channels.shape)     
+            # print("ISI_channels shape:", ISI_channels.shape)
 
             noise = torch.randn(batch_size, device=device)
 
@@ -110,7 +118,7 @@ def train(
                 batch_size=batch_size,
                 dnn_out=output,
                 mu=mu,
-                batch = batch, 
+                batch=batch,
                 ISI_symbols_real=ISI_symbols_real,
                 ISI_symbols_imag=ISI_symbols_imag,
                 ISI_channels=ISI_channels,
@@ -135,12 +143,12 @@ def train(
 
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item()}")
 
+
 def test(
     model,
     dataloader,
     loss_function,
     device,
-    P,
     mu,
     num_points,
     prob,
@@ -159,19 +167,29 @@ def test(
             batch = batch[0].to(device)
             output = model(batch)
 
-            # Simulate ISI symbols and channels
-            ISI_symbols_real = (-torch.sqrt(torch.tensor(3.0)) + 2 * torch.sqrt(torch.tensor(3.0)) * torch.rand((batch_size, mu - 1))).to(device)
-            ISI_symbols_imag = (-torch.sqrt(torch.tensor(3.0)) + 2 * torch.sqrt(torch.tensor(3.0)) * torch.rand((batch_size, mu - 1))).to(device)
-            
-            ISI_channels = utils.generate_h(num_points=10000)
+            # Simulate ISI symbols and channels similar to the train function
+            ISI_symbols_indices = torch.randint(0, batch_size, (batch_size, mu - 1)).to(
+                device
+            )
+            ISI_symbols_real = batch[ISI_symbols_indices, 2].to(
+                device
+            )  # Select from the real part
+            ISI_symbols_imag = batch[ISI_symbols_indices, 3].to(
+                device
+            )  # Select from the imaginary part
+
+            ISI_channels = torch.tensor(
+                utils.generate_h(num_points=batch_size * (mu - 1)), dtype=torch.float32
+            ).to(device)
+            ISI_channels = ISI_channels.view(batch_size, mu - 1)
+
             noise = torch.randn(batch_size, device=device)
 
             loss = loss_function(
                 batch_size=batch_size,
-                inputs=output,
+                dnn_out=output,
                 mu=mu,
-                x_real=batch[:, 2],
-                x_imag=batch[:, 3],
+                batch=batch,
                 ISI_symbols_real=ISI_symbols_real,
                 ISI_symbols_imag=ISI_symbols_imag,
                 ISI_channels=ISI_channels,
@@ -184,7 +202,6 @@ def test(
                 M_bandwidth=M_bandwidth,
                 pul_power=pul_power,
                 freq_resp=freq_resp,
-                P=P,
                 test_bool=True,  # Indicate that this is a test run
             )
             loss = loss.mean()
@@ -193,6 +210,7 @@ def test(
     average_loss = total_loss / len(dataloader)
     print(f"Test Loss: {average_loss:.4f}")
     return average_loss
+
 
 def main():
     device = prepare_device()
@@ -263,7 +281,6 @@ def main():
         dataloader,
         loss_function,
         device,
-        P,
         mu,
         num_points,
         prob,
@@ -274,6 +291,7 @@ def main():
         freq_resp,
         batch_size,
     )
+
 
 if __name__ == "__main__":
     main()
