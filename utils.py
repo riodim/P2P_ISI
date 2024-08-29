@@ -63,6 +63,9 @@ def MSE_sampling_ISI(mu, b, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, IS
     y_rec_imag = torch.zeros(batch_size, 1).to(device)
 
     index = 0
+    b = torch.reshape(b,(batch_size,1))
+    channels = torch.reshape(channels,(batch_size,1))
+
     for w2 in range(mu):        
         if w2 != num_ISI:
 
@@ -72,10 +75,11 @@ def MSE_sampling_ISI(mu, b, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, IS
         else:
             y_rec_real = b*channels*x_real*(dnn_out[:,sample_time].unsqueeze(1))
             y_rec_imag = b*channels*x_imag*(dnn_out[:,sample_time].unsqueeze(1))
-
+    # import pdb
+    # pdb.set_trace()
     y_ISI_total_real = y_ISI_real + y_rec_real
     y_ISI_total_imag = y_ISI_imag + y_rec_imag
-
+ 
     return y_ISI_total_real, y_ISI_total_imag
 
 

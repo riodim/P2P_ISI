@@ -108,22 +108,20 @@ class ISI_loss_function(nn.Module):
             y_total_real = y_signal_real + noise
             y_total_imag = y_signal_imag + noise
 
-            prob_index = sample_time % prob.size(
-                0
-            )  
+            prob_index = sample_time
 
             # loss = loss + prob[sample_time] * (torch.mean(torch.square(y_total_real - y_target_real))  + torch.mean(torch.square(y_total_imag - y_target_imag)))
 
             # Calculate the loss using the adjusted prob index
-            loss = loss + prob[prob_index] * (torch.mean(torch.square(y_total_real - y_target_real))  + torch.mean(torch.square(y_total_imag - y_target_imag)))
+            loss = loss + prob[0,prob_index] * (torch.mean(torch.square(y_total_real - y_target_real))  + torch.mean(torch.square(y_total_imag - y_target_imag)))
 
-            if not test_bool:
-                loss = (
-                    loss
-                    + self.calculate_loss_sym(M_sym, mid_sample, dnn_out)
-                    + self.calculate_loss_power(M_power, num_points, pul_power, dnn_out)
-                    + self.calculate_loss_bandwidth(M_bandwidth, fft_cur_pulse, freq_resp)
-                )
+        if not test_bool:
+            loss = (
+                loss
+                + self.calculate_loss_sym(M_sym, mid_sample, dnn_out)
+                + self.calculate_loss_power(M_power, num_points, pul_power, dnn_out)
+                + self.calculate_loss_bandwidth(M_bandwidth, fft_cur_pulse, freq_resp)
+            )
 
         return loss
 
