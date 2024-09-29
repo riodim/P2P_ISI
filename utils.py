@@ -3,6 +3,7 @@
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+import os
 
 def generate_qam_symbols(num_symbols, M):
     # Calculate the number of points along each axis (sqrt_M should be an integer)
@@ -132,3 +133,116 @@ def calculate_b(simRuns, P, h_data):
         b_data[m] = b
 
     return b_data
+
+def save_results_to_file(filename, M_loss, M_sym, M_power, M_bandwidth, pulse_new, output_folder='results'):
+    os.makedirs(output_folder, exist_ok=True)
+    
+    # Combine folder path with the filename
+    filepath = os.path.join(output_folder, filename)
+
+    # Save the results to a text file
+    with open(filepath, 'w') as f:
+        f.write(f"M_loss: {M_loss}, M_sym: {M_sym}, M_power: {M_power}, M_bandwidth: {M_bandwidth}\n")
+        np.savetxt(f, pulse_new.cpu().numpy(), fmt='%.6f')
+        f.write("\n\n")
+
+def plot_and_save_pulse(filename, output_folder):
+    # Ensure the output folder exists
+    os.makedirs(output_folder, exist_ok=True)
+
+    # Open the file and read the M values and pulse_new array
+    with open(filename, 'r') as f:
+        first_line = f.readline().strip()  # Read the first line for M values
+        pulse_new = np.loadtxt(f)  # Read the pulse_new array from the rest of the file
+    
+    # Extract the base name of the file (without extension)
+    base_name = os.path.splitext(os.path.basename(filename))[0]
+    
+    # Plot the pulse_new array
+    plt.figure()
+    plt.plot(pulse_new)
+    plt.title(base_name)
+    plt.xlabel('Index')
+    plt.ylabel('Pulse Amplitude')
+    
+    # Save the plot as a PNG in the results folder
+    output_path = os.path.join(output_folder, f"{base_name}.png")
+    plt.savefig(output_path)
+    plt.close()
+
+def process_all_files_in_folder(input_folder, output_folder):
+    # Ensure the output folder exists
+    os.makedirs(output_folder, exist_ok=True)
+
+    # Loop through all the files in the input folder
+    for filename in os.listdir(input_folder):
+        if filename.endswith('.txt'):
+            file_path = os.path.join(input_folder, filename)
+            plot_and_save_pulse(file_path, output_folder)
+
+def assign_bits_to_symbols(symbols, M):
+    # Create a Gray-coded bit mapping
+    # M = 64, so we will need 6 bits for each symbol
+    bit_mapping = {}
+    sqrt_M = int(np.sqrt(M))
+    for i in range(sqrt_M):
+        for j in range(sqrt_M):
+            # Calculate the Gray code bits for each symbol
+            bits = np.binary_repr(i ^ (i >> 1), width=int(np.log2(M)))
+            bit_mapping[symbols[i*sqrt_M + j]] = bits
+    return bit_mapping
+
+def calculate_bit_distance(correct_symbol, received_symbol, bit_mapping):
+    # Find the closest symbol for both correct and received symbols
+    correct_symbol_closest = find_closest_symbol(correct_symbol, bit_mapping)
+    received_symbol_closest = find_closest_symbol(received_symbol, bit_mapping)
+
+    # Retrieve the corresponding bit strings from the bit mapping
+    correct_bits = bit_mapping[correct_symbol_closest]
+    error_bits = bit_mapping[received_symbol_closest]
+
+    # Calculate Hamming distance between the bit strings
+    distance = sum(c1 != c2 for c1, c2 in zip(correct_bits, error_bits))
+    return distance
+
+def find_closest_symbol(received_symbol, bit_mapping):
+    # Find the closest symbol in the bit_mapping using the minimum Euclidean distance
+    closest_symbol = min(bit_mapping.keys(), key=lambda x: abs(x - received_symbol))
+    return closest_symbol
+
+def calculate_ber(dataloader, model, bit_mapping, device, batch_size):
+    total_bits = 0
+    error_bits = 0
+    model.eval()
+
+    with torch.no_grad():
+        for batch_idx, batch in enumerate(dataloader):
+            batch = batch[0].to(device)
+            output = model(batch)
+
+            for i in range(batch_size):
+                # Get the transmitted (correct) symbol
+                correct_symbol = complex(batch[i, 2].item(), batch[i, 3].item())
+
+                # Get the received (predicted) symbol
+                received_symbol = complex(output[i, 2].item(), output[i, 3].item())
+
+                # Find the closest symbols in the constellation for both transmitted and received symbols
+                correct_symbol_closest = find_closest_symbol(correct_symbol, bit_mapping)
+                received_symbol_closest = find_closest_symbol(received_symbol, bit_mapping)
+
+                # Retrieve the corresponding bit strings from the bit mapping
+                correct_bits = bit_mapping[correct_symbol_closest]
+                error_bits_str = bit_mapping[received_symbol_closest]
+
+                # Calculate Hamming distance between the bit strings
+                bit_distance = sum(c1 != c2 for c1, c2 in zip(correct_bits, error_bits_str))
+                error_bits += bit_distance
+
+                # Total bits for the correct symbol
+                total_bits += len(correct_bits)
+
+    # Calculate the bit error rate (BER)
+    ber = error_bits / total_bits
+    print(f"BER: {ber}")
+    return

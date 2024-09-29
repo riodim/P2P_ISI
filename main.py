@@ -5,17 +5,27 @@ import utils as utils
 import model_loss as model_loss
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
+import matplotlib.pyplot as plt
+import os
+
+
+results_folder = 'results'
+data_folder = os.path.join(results_folder, 'data')
+plots_folder = os.path.join(results_folder, 'plots')
 
 
 def prepare_device():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
+    device = "cpu"
     return device
 
 
 def prepare_dataloader(num_symbols, M, P, batch_size, device, fixed_h):
     qam_symbols = utils.generate_qam_symbols(num_symbols, M)
-    utils.plot_constellation(qam_symbols, "qam_constellation.png")
+    bit_mapping = utils.assign_bits_to_symbols(qam_symbols, M)
+
+    # utils.plot_constellation(qam_symbols, "qam_constellation.png")
 
     x_real = np.real(qam_symbols)
     x_imag = np.imag(qam_symbols)
@@ -41,7 +51,7 @@ def prepare_dataloader(num_symbols, M, P, batch_size, device, fixed_h):
 
     inputs_tensor = torch.tensor(inputs, dtype=torch.float32).to(device)
     dataset = TensorDataset(inputs_tensor)
-    return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=True), bit_mapping
 
 
 def prepare_model(input_size, output_size, hidden_layers, learning_rate, device):
@@ -76,6 +86,7 @@ def train(
     mu,
     num_points,
     prob,
+    M_loss,
     M_sym,
     M_power,
     M_bandwidth,
@@ -117,6 +128,7 @@ def train(
                 noise=noise,
                 prob=prob.to(device),
                 device=device,
+                M_loss=M_loss,
                 M_sym=M_sym,
                 M_power=M_power,
                 M_bandwidth=M_bandwidth,
@@ -127,7 +139,7 @@ def train(
 
             loss.backward()
             optimizer.step()
-
+            print(f" Loss: {loss.item()}")
             total_loss += loss.item()
 
         scheduler.step()
@@ -143,24 +155,37 @@ def test(
     mu,
     num_points,
     prob,
+    M_loss,
     M_sym,
     M_power,
     M_bandwidth,
     pul_power,
     freq_resp,
     batch_size,
-):
-    model.eval()  # Set model to evaluation mode
+    bit_mapping):
+    model.eval() 
+    
     total_loss = 0
+    total_bits = 0
+    error_bits = 0
+
     ISI_channels = torch.tensor(
         utils.generate_h(num_points=batch_size * (mu - 1)), dtype=torch.float32
     )
     ISI_channels = ISI_channels.view(batch_size, mu - 1)
+
+    index = -1
+    pulse_per_batch = torch.zeros(len(dataloader), num_points)
+
     with torch.no_grad():  # Disable gradient calculation for testing
-        for batch_idx, batch in dataloader:
+        for batch_idx, batch in enumerate(dataloader):
+            index = index + 1
+
             print(f"Processing batch {batch_idx + 1}/{len(dataloader)}")
+
             batch = batch[0].to(device)
             output = model(batch)
+            pulse_per_batch[index, :] = torch.mean(output,dim=0)
 
             # Simulate ISI symbols and channels similar to the train function
             ISI_symbols_indices = torch.randint(0, batch_size, (batch_size, mu - 1))
@@ -181,20 +206,37 @@ def test(
                 noise=noise,
                 prob=prob.to(device),
                 device=device,
+                M_loss=M_loss,
                 M_sym=M_sym,
                 M_power=M_power,
                 M_bandwidth=M_bandwidth,
                 pul_power=pul_power,
                 freq_resp=freq_resp,
-                test_bool=True,  # Indicate that this is a test run
+                test_bool=True,
             )
 
             total_loss += loss.item()
+            for i in range(batch_size):
+                correct_symbol = complex(batch[i, 2].item(), batch[i, 3].item())
+                received_symbol = complex(output[i, 2].item(), output[i, 3].item())
 
-    average_loss = total_loss / len(dataloader)
-    print(f"Test Loss: {average_loss:.4f}")
-    return average_loss
+                correct_symbol_closest = utils.find_closest_symbol(correct_symbol, bit_mapping)
+                received_symbol_closest = utils.find_closest_symbol(received_symbol, bit_mapping)
 
+                correct_bits = bit_mapping[correct_symbol_closest]
+                error_bits_str = bit_mapping[received_symbol_closest]
+
+                # Calculate Hamming distance (bit errors)
+                bit_distance = sum(c1 != c2 for c1, c2 in zip(correct_bits, error_bits_str))
+                error_bits += bit_distance
+
+                # Count total bits for the correct symbol
+                total_bits += len(correct_bits)
+    ber = error_bits / total_bits
+
+    pulse_per_batch = torch.mean(pulse_per_batch, dim = 0)
+    print(f"Test Loss: {total_loss / len(dataloader):.4f}, BER: {ber}")
+    return total_loss / len(dataloader), pulse_per_batch, ber
 
 def main():
     device = prepare_device()
@@ -204,78 +246,106 @@ def main():
     mu = 7
     P = 10
     batch_size = 100
-    learning_rate = 0.003
-    num_epochs = 5
+    learning_rate = 0.001 #0.003
+    num_epochs = 3
 
     # Define MSE parameters
-    M_sym = 43
-    M_power = 90
-    M_bandwidth = 6.31
-
+    #M_gap = 10**1.8
+    M_loss_values = [1]
+    M_sym_values = [4.3*10**3]
+    M_power_values = [9*10**3]
+    M_bandwidth_values = [10**1.35]
     freq_resp = 0.2
-    pul_power = 1
+    pul_power = 0.1382
 
     num_symbols = 10000
 
     # Generate a fixed h for all epochs
     fixed_h = utils.generate_h(num_symbols)  # Assuming num_symbols = 10000
+    
+    os.makedirs(data_folder, exist_ok=True)
+    os.makedirs(plots_folder, exist_ok=True)
 
-    dataloader = prepare_dataloader(
-        num_symbols=10000,
-        M=64,
-        P=P,
-        batch_size=batch_size,
-        device=device,
-        fixed_h=fixed_h,
-    )
-    model, optimizer, scheduler = prepare_model(
-        input_size=4,  # Assuming your input to the model is 4-dimensional
-        output_size=num_points,  # The model should output 4-dimensional vectors
-        hidden_layers=[256, 256, 256],
-        learning_rate=learning_rate,
-        device=device,
-    )
-    loss_function = prepare_loss_function()
+    for M_loss in M_loss_values:
+        for M_sym in M_sym_values:
+            for M_power in M_power_values:
+                for M_bandwidth in M_bandwidth_values:
+                    print(f"Running with M_loss={M_loss}, M_sym={M_sym}, M_power={M_power}, M_bandwidth={M_bandwidth}")
+                    dataloader, bit_mapping = prepare_dataloader(
+                        num_symbols=10000,
+                        M=64,
+                        P=P,
+                        batch_size=batch_size,
+                        device=device,
+                        fixed_h=fixed_h,
+                    )
+                    model, optimizer, scheduler = prepare_model(
+                        input_size=4,  # Assuming your input to the model is 4-dimensional
+                        output_size=num_points,  # The model should output 4-dimensional vectors
+                        hidden_layers=[256, 256, 256],
+                        learning_rate=learning_rate,
+                        device=device,
+                    )
+                    loss_function = prepare_loss_function()
 
-    # Define probability distribution for error samples
-    sigma_error = np.array([0.1, 0.2])
-    prob = prepare_probability_distribution(sigma_error, num_points, mu)
+                    # Define probability distribution for error samples
+                    sigma_error = np.array([0.1, 0.2])
+                    prob = prepare_probability_distribution(sigma_error, num_points, mu)
 
-    train(
-        model,
-        dataloader,
-        optimizer,
-        loss_function,
-        num_epochs,
-        device,
-        mu,
-        num_points,
-        prob,
-        M_sym,
-        M_power,
-        M_bandwidth,
-        pul_power,
-        freq_resp,
-        batch_size,
-        scheduler,
-    )
+                    train(
+                        model,
+                        dataloader,
+                        optimizer,
+                        loss_function,
+                        num_epochs,
+                        device,
+                        mu,
+                        num_points,
+                        prob,
+                        M_loss,
+                        M_sym,
+                        M_power,
+                        M_bandwidth,
+                        pul_power,
+                        freq_resp,
+                        batch_size,
+                        scheduler,
+                    )
 
-    test(
-        model,
-        dataloader,
-        loss_function,
-        device,
-        mu,
-        num_points,
-        prob,
-        M_sym,
-        M_power,
-        M_bandwidth,
-        pul_power,
-        freq_resp,
-        batch_size,
-    )
-
-
+                    average_loss, pulse_per_batch, ber = test(
+                        model,
+                        dataloader,
+                        loss_function,
+                        device,
+                        mu,
+                        num_points,
+                        prob,
+                        M_loss,
+                        M_sym,
+                        M_power,
+                        M_bandwidth,
+                        pul_power,
+                        freq_resp,
+                        batch_size,
+                        bit_mapping
+                    )    
+                    created_pulse = pulse_per_batch
+                    mid_point = 1750
+                    data_pulse_last = (created_pulse[0:mid_point] + created_pulse.flip(0)[0:mid_point]) / 2
+                    pulse_new = created_pulse 
+                    pulse_new[0:mid_point] = data_pulse_last
+                    pulse_new[mid_point+1:num_points] = data_pulse_last.flip(0)
+                    
+                    filename = f"pulse_Mloss{M_loss}_Msym_{M_sym}_Mpower_{M_power}_Mbandwidth_{M_bandwidth}_Loss_{average_loss}.txt"
+                    utils.save_results_to_file(filename, M_loss, M_sym, M_power, M_bandwidth, pulse_new, data_folder)
+                    
+                    #plt.plot(pulse_per_batch.squeeze().numpy())
+                    
+                    # plt.plot(pulse_new.squeeze().numpy())
+                    # import pdb; pdb.set_trace()
+                    
+    utils.process_all_files_in_folder(data_folder, plots_folder)
+                
 if __name__ == "__main__":
     main()
+

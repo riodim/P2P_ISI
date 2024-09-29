@@ -40,7 +40,6 @@ class OTAPulse(nn.Module):
         x6 = self.relu3(x5)
 
         x7 = self.fc4(x6)
-        # x7 = torch.sigmoid(x7)
 
         return x7
 
@@ -63,6 +62,7 @@ class ISI_loss_function(nn.Module):
         noise,
         prob,
         device,
+        M_loss,
         M_sym,
         M_power,
         M_bandwidth,
@@ -117,7 +117,7 @@ class ISI_loss_function(nn.Module):
 
         if not test_bool:
             loss = (
-                loss
+                loss * M_loss
                 + self.calculate_loss_sym(M_sym, mid_sample, dnn_out)
                 + self.calculate_loss_power(M_power, num_points, pul_power, dnn_out)
                 + self.calculate_loss_bandwidth(M_bandwidth, fft_cur_pulse, freq_resp)
