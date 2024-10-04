@@ -94,9 +94,10 @@ def process_file(file_path, bit_mapping, qam_symbols, h_data, b, x_real, x_imag,
         dnn_out=dnn_out,
         device=device
     )
+    noise = torch.randn(10000, device=device)
 
-    y_total_real = y_signal_real
-    y_total_imag = y_signal_imag
+    y_total_real = y_signal_real + noise
+    y_total_imag = y_signal_imag + noise
 
     received_symbols = y_total_real + 1j * y_total_imag
     received_symbols = utils.nearest_qam_symbols(received_symbols, qam_symbols)
@@ -108,7 +109,7 @@ def main():
     num_symbols = 10000  # Total number of symbols
     M = 64  # QAM order
     P = 10  # Some parameter related to h_data (as used in your utils)
-    mu = 7
+    mu = 1
     device = prepare_device()  # Make sure device is initialized (CPU or GPU)
 
     # Generate QAM symbols and bit mappings
