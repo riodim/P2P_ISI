@@ -29,8 +29,8 @@ def MSE_sampling_ISI(mu, b, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, IS
             y_rec_real = b * channels * x_real * (dnn_out[sample_time].unsqueeze(0)).repeat(len(x_real))
             y_rec_imag = b * channels * x_imag * (dnn_out[sample_time].unsqueeze(0)).repeat(len(x_imag))
 
-    y_ISI_total_real = y_ISI_real* 0+ y_rec_real
-    y_ISI_total_imag = y_ISI_imag* 0 + y_rec_imag
+    y_ISI_total_real = y_ISI_real * 0 + y_rec_real
+    y_ISI_total_imag = y_ISI_imag * 0 + y_rec_imag
 
     return y_ISI_total_real, y_ISI_total_imag
 
@@ -108,7 +108,7 @@ def main():
     num_symbols = 10000  # Total number of symbols
     M = 64  # QAM order
     P = 10  # Some parameter related to h_data (as used in your utils)
-    mu = 1
+    mu = 7
     device = prepare_device()  # Make sure device is initialized (CPU or GPU)
 
     # Generate QAM symbols and bit mappings
