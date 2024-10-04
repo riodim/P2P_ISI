@@ -23,7 +23,6 @@ def prepare_device():
 
 def prepare_dataloader(num_symbols, M, P, batch_size, device, fixed_h):
     qam_symbols = utils.generate_qam_symbols(num_symbols, M)
-    bit_mapping = utils.assign_bits_to_symbols(qam_symbols, M)
 
     # utils.plot_constellation(qam_symbols, "qam_constellation.png")
 
@@ -51,7 +50,7 @@ def prepare_dataloader(num_symbols, M, P, batch_size, device, fixed_h):
 
     inputs_tensor = torch.tensor(inputs, dtype=torch.float32).to(device)
     dataset = TensorDataset(inputs_tensor)
-    return DataLoader(dataset, batch_size=batch_size, shuffle=True), bit_mapping
+    return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 
 def prepare_model(input_size, output_size, hidden_layers, learning_rate, device):
@@ -226,11 +225,11 @@ def main():
     P = 10
     batch_size = 100
     learning_rate = 0.001 #0.003
-    num_epochs = 3
+    num_epochs = 6
 
     # Define MSE parameters
     #M_gap = 10**1.8
-    M_loss_values = [30]
+    M_loss_values = [45]
     M_sym_values = [4.3*10**3]
     M_power_values = [9*10**3]
     M_bandwidth_values = [10**1.35]
