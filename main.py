@@ -161,13 +161,10 @@ def test(
     M_bandwidth,
     pul_power,
     freq_resp,
-    batch_size,
-    bit_mapping):
+    batch_size):
     model.eval() 
     
     total_loss = 0
-    total_bits = 0
-    error_bits = 0
 
     ISI_channels = torch.tensor(
         utils.generate_h(num_points=batch_size * (mu - 1)), dtype=torch.float32
@@ -187,7 +184,6 @@ def test(
             output = model(batch)
             pulse_per_batch[index, :] = torch.mean(output,dim=0)
 
-            # Simulate ISI symbols and channels similar to the train function
             ISI_symbols_indices = torch.randint(0, batch_size, (batch_size, mu - 1))
             ISI_symbols_real = batch[ISI_symbols_indices, 2]
             ISI_symbols_imag = batch[ISI_symbols_indices, 3]
@@ -216,27 +212,10 @@ def test(
             )
 
             total_loss += loss.item()
-            for i in range(batch_size):
-                correct_symbol = complex(batch[i, 2].item(), batch[i, 3].item())
-                received_symbol = complex(output[i, 2].item(), output[i, 3].item())
-
-                correct_symbol_closest = utils.find_closest_symbol(correct_symbol, bit_mapping)
-                received_symbol_closest = utils.find_closest_symbol(received_symbol, bit_mapping)
-
-                correct_bits = bit_mapping[correct_symbol_closest]
-                error_bits_str = bit_mapping[received_symbol_closest]
-
-                # Calculate Hamming distance (bit errors)
-                bit_distance = sum(c1 != c2 for c1, c2 in zip(correct_bits, error_bits_str))
-                error_bits += bit_distance
-
-                # Count total bits for the correct symbol
-                total_bits += len(correct_bits)
-    ber = error_bits / total_bits
 
     pulse_per_batch = torch.mean(pulse_per_batch, dim = 0)
-    print(f"Test Loss: {total_loss / len(dataloader):.4f}, BER: {ber}")
-    return total_loss / len(dataloader), pulse_per_batch, ber
+    print(f"Test Loss: {total_loss / len(dataloader):.4f}")
+    return total_loss / len(dataloader), pulse_per_batch
 
 def main():
     device = prepare_device()
@@ -251,7 +230,7 @@ def main():
 
     # Define MSE parameters
     #M_gap = 10**1.8
-    M_loss_values = [1]
+    M_loss_values = [30]
     M_sym_values = [4.3*10**3]
     M_power_values = [9*10**3]
     M_bandwidth_values = [10**1.35]
@@ -271,7 +250,7 @@ def main():
             for M_power in M_power_values:
                 for M_bandwidth in M_bandwidth_values:
                     print(f"Running with M_loss={M_loss}, M_sym={M_sym}, M_power={M_power}, M_bandwidth={M_bandwidth}")
-                    dataloader, bit_mapping = prepare_dataloader(
+                    dataloader = prepare_dataloader(
                         num_symbols=10000,
                         M=64,
                         P=P,
@@ -312,7 +291,7 @@ def main():
                         scheduler,
                     )
 
-                    average_loss, pulse_per_batch, ber = test(
+                    average_loss, pulse_per_batch = test(
                         model,
                         dataloader,
                         loss_function,
@@ -326,8 +305,7 @@ def main():
                         M_bandwidth,
                         pul_power,
                         freq_resp,
-                        batch_size,
-                        bit_mapping
+                        batch_size
                     )    
                     created_pulse = pulse_per_batch
                     mid_point = 1750

@@ -180,16 +180,40 @@ def process_all_files_in_folder(input_folder, output_folder):
             file_path = os.path.join(input_folder, filename)
             plot_and_save_pulse(file_path, output_folder)
 
+def gray_code(n):
+    """Generate n-bit Gray code."""
+    return n ^ (n >> 1)
+
 def assign_bits_to_symbols(symbols, M):
     # Create a Gray-coded bit mapping
-    # M = 64, so we will need 6 bits for each symbol
+    # M = 64, so we will need 6 bits for each symbol (3 for I and 3 for Q)
     bit_mapping = {}
     sqrt_M = int(np.sqrt(M))
-    for i in range(sqrt_M):
-        for j in range(sqrt_M):
-            # Calculate the Gray code bits for each symbol
-            bits = np.binary_repr(i ^ (i >> 1), width=int(np.log2(M)))
-            bit_mapping[symbols[i*sqrt_M + j]] = bits
+    num_bits = int(np.log2(sqrt_M))  # Bits for each axis (I and Q)
+
+    # Find the unique values for real and imaginary parts
+    real_vals = np.unique([np.real(sym) for sym in symbols])
+    imag_vals = np.unique([np.imag(sym) for sym in symbols])
+
+    for symbol in symbols:
+        real_part = np.real(symbol)
+        imag_part = np.imag(symbol)
+
+        # Find the index of the real and imaginary parts
+        real_index = np.where(real_vals == real_part)[0][0]
+        imag_index = np.where(imag_vals == imag_part)[0][0]
+
+        # Get the Gray code for the real and imaginary parts
+        real_gray = gray_code(real_index)
+        imag_gray = gray_code(imag_index)
+
+        # Convert the Gray codes to binary strings
+        real_bits = np.binary_repr(real_gray, width=num_bits)
+        imag_bits = np.binary_repr(imag_gray, width=num_bits)
+
+        # Concatenate the bits for the symbol
+        bit_mapping[symbol] = real_bits + imag_bits
+
     return bit_mapping
 
 def calculate_bit_distance(correct_symbol, received_symbol, bit_mapping):
@@ -210,39 +234,15 @@ def find_closest_symbol(received_symbol, bit_mapping):
     closest_symbol = min(bit_mapping.keys(), key=lambda x: abs(x - received_symbol))
     return closest_symbol
 
-def calculate_ber(dataloader, model, bit_mapping, device, batch_size):
-    total_bits = 0
-    error_bits = 0
-    model.eval()
+def nearest_qam_symbols(received_symbols, qam_symbols):
+    # Ensure received_symbols is a NumPy array for compatibility with qam_symbols
+    if isinstance(received_symbols, torch.Tensor):
+        received_symbols = received_symbols.cpu().numpy()  # Convert tensor to NumPy
 
-    with torch.no_grad():
-        for batch_idx, batch in enumerate(dataloader):
-            batch = batch[0].to(device)
-            output = model(batch)
+    nearest_symbols = []
+    for symbol in received_symbols:
+        distances = np.abs(qam_symbols - symbol)
+        nearest_symbol = qam_symbols[np.argmin(distances)]
+        nearest_symbols.append(nearest_symbol)
 
-            for i in range(batch_size):
-                # Get the transmitted (correct) symbol
-                correct_symbol = complex(batch[i, 2].item(), batch[i, 3].item())
-
-                # Get the received (predicted) symbol
-                received_symbol = complex(output[i, 2].item(), output[i, 3].item())
-
-                # Find the closest symbols in the constellation for both transmitted and received symbols
-                correct_symbol_closest = find_closest_symbol(correct_symbol, bit_mapping)
-                received_symbol_closest = find_closest_symbol(received_symbol, bit_mapping)
-
-                # Retrieve the corresponding bit strings from the bit mapping
-                correct_bits = bit_mapping[correct_symbol_closest]
-                error_bits_str = bit_mapping[received_symbol_closest]
-
-                # Calculate Hamming distance between the bit strings
-                bit_distance = sum(c1 != c2 for c1, c2 in zip(correct_bits, error_bits_str))
-                error_bits += bit_distance
-
-                # Total bits for the correct symbol
-                total_bits += len(correct_bits)
-
-    # Calculate the bit error rate (BER)
-    ber = error_bits / total_bits
-    print(f"BER: {ber}")
-    return
+    return nearest_symbols
