@@ -109,10 +109,13 @@ def train(
             optimizer.zero_grad()
             output = model(batch)
 
-            ISI_symbols_indices = torch.randint(0, batch_size, (batch_size, mu - 1))
-            ISI_symbols_real = batch[ISI_symbols_indices, 2]
-            ISI_symbols_imag = batch[ISI_symbols_indices, 3]
+            x_real = batch[:, 2]  # Real parts of the symbols
+            x_imag = batch[:, 3]  # Imaginary parts of the symbols
 
+            # Apply roll operation to simulate ISI from neighboring symbols
+            ISI_symbols_real = torch.stack([torch.roll(x_real, shifts=i, dims=0) for i in range(1, mu)], dim=1)
+            ISI_symbols_imag = torch.stack([torch.roll(x_imag, shifts=i, dims=0) for i in range(1, mu)], dim=1)
+            
             noise = torch.randn(batch_size, device=device)
 
             loss = loss_function(
@@ -183,9 +186,12 @@ def test(
             output = model(batch)
             pulse_per_batch[index, :] = torch.mean(output,dim=0)
 
-            ISI_symbols_indices = torch.randint(0, batch_size, (batch_size, mu - 1))
-            ISI_symbols_real = batch[ISI_symbols_indices, 2]
-            ISI_symbols_imag = batch[ISI_symbols_indices, 3]
+            x_real = batch[:, 2]  # Real parts of the symbols
+            x_imag = batch[:, 3]  # Imaginary parts of the symbols
+
+            # Apply roll operation to simulate ISI from neighboring symbols
+            ISI_symbols_real = torch.stack([torch.roll(x_real, shifts=i, dims=0) for i in range(1, mu)], dim=1)
+            ISI_symbols_imag = torch.stack([torch.roll(x_imag, shifts=i, dims=0) for i in range(1, mu)], dim=1)
 
             noise = torch.randn(batch_size, device=device)
 
@@ -225,11 +231,10 @@ def main():
     P = 10
     batch_size = 100
     learning_rate = 0.001 #0.003
-    num_epochs = 6
+    num_epochs = 3
 
     # Define MSE parameters
-    #M_gap = 10**1.8
-    M_loss_values = [45]
+    M_loss_values = [1,2,3,4,5,6,7,8,9,10,14,18,20]
     M_sym_values = [4.3*10**3]
     M_power_values = [9*10**3]
     M_bandwidth_values = [10**1.35]

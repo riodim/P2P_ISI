@@ -23,14 +23,14 @@ def MSE_sampling_ISI(mu, b, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, IS
     for w2 in range(mu):
         if w2 != num_ISI:
             sample_index = sample_time + (w2 - num_ISI) * 2 * T
-            y_ISI_real += b * ISI_channels * x_ISI_real * (dnn_out[sample_index].unsqueeze(0)).repeat(len(x_ISI_real))
-            y_ISI_imag += b * ISI_channels * x_ISI_imag * (dnn_out[sample_index].unsqueeze(0)).repeat(len(x_ISI_imag))
+            y_ISI_real += b * ISI_channels * x_ISI_real * (dnn_out[sample_index].unsqueeze(0))
+            y_ISI_imag += b * ISI_channels * x_ISI_imag * (dnn_out[sample_index].unsqueeze(0))
         else:
-            y_rec_real = b * channels * x_real * (dnn_out[sample_time].unsqueeze(0)).repeat(len(x_real))
-            y_rec_imag = b * channels * x_imag * (dnn_out[sample_time].unsqueeze(0)).repeat(len(x_imag))
+            y_rec_real = b * channels * x_real * (dnn_out[1750].unsqueeze(0))
+            y_rec_imag = b * channels * x_imag * (dnn_out[1750].unsqueeze(0))
 
-    y_ISI_total_real = y_ISI_real * 0 + y_rec_real
-    y_ISI_total_imag = y_ISI_imag * 0 + y_rec_imag
+    y_ISI_total_real = (y_ISI_real*0 + y_rec_real)
+    y_ISI_total_imag = (y_ISI_imag*0 + y_rec_imag)
 
     return y_ISI_total_real, y_ISI_total_imag
 
@@ -43,7 +43,6 @@ def prepare_device():
 def calculate_ber(bit_mapping, transmitted_symbols, received_symbols):
     total_bit_errors = 0
     total_bits = 0
-    
     for transmitted_symbol, received_symbol in zip(transmitted_symbols, received_symbols):
         transmitted_bits = bit_mapping[transmitted_symbol]
         received_bits = bit_mapping[received_symbol]
@@ -94,24 +93,47 @@ def process_file(file_path, bit_mapping, qam_symbols, h_data, b, x_real, x_imag,
         dnn_out=dnn_out,
         device=device
     )
-    noise = torch.randn(10000, device=device)
+    noise_real = torch.randn(10000, device=device)
+    noise_imag = torch.randn(10000, device=device)
 
-    y_total_real = y_signal_real + noise
-    y_total_imag = y_signal_imag + noise
+    # plt.figure(figsize=(6, 6))
+    # plt.scatter(y_signal_real, y_signal_imag, color='blue', s=10)
+    # plt.grid(True)
+    # plt.title("64-QAM Constellation Diagram")
+    # plt.xlabel("In-phase (Real)")
+    # plt.ylabel("Quadrature (Imaginary)")
+    # plt.axhline(0, color='black', linewidth=0.5)
+    # plt.axvline(0, color='black', linewidth=0.5)
+    # import pdb; pdb.set_trace()
+    # y_total_real = y_signal_real + 1/np.sqrt(2)*noise
+    # y_total_imag = y_signal_imag + 1/np.sqrt(2)*noise
+    M=64
+    delta = np.sqrt(2 * (M - 1) / 3)
+    y_total_real = y_signal_real + (1/np.sqrt(2)*noise_real)/(b*delta)
+    y_total_imag = y_signal_imag + (1/np.sqrt(2)*noise_imag)/(b*delta)
 
-    received_symbols = y_total_real + 1j * y_total_imag
-    received_symbols = utils.nearest_qam_symbols(received_symbols, qam_symbols)
+    received_symbols = utils.nearest_qam_symbols(y_total_real+1j*y_total_imag, qam_symbols)
 
-    ber = calculate_ber(bit_mapping, qam_symbols[:len(received_symbols)], received_symbols)
+    # plt.figure(figsize=(6, 6))
+    # plt.scatter(y_total_real, y_total_imag, color='blue', s=10)
+    # plt.grid(True)
+    # plt.title("64-QAM Constellation Diagram")
+    # plt.xlabel("In-phase (Real)")
+    # plt.ylabel("Quadrature (Imaginary)")
+    # plt.axhline(0, color='black', linewidth=0.5)
+    # plt.axvline(0, color='black', linewidth=0.5)
+    # import pdb; pdb.set_trace()
+    transmitted_symbols = utils.nearest_qam_symbols(x_real+1j*x_imag, qam_symbols)
+
+    ber = calculate_ber(bit_mapping, transmitted_symbols, received_symbols)
     return ber
 
 def main():
     num_symbols = 10000  # Total number of symbols
     M = 64  # QAM order
-    P = 10  # Some parameter related to h_data (as used in your utils)
-    mu = 1
-    device = prepare_device()  # Make sure device is initialized (CPU or GPU)
-
+    P = 10  
+    mu = 7
+    device = prepare_device()  
     # Generate QAM symbols and bit mappings
     qam_symbols = utils.generate_qam_symbols(num_symbols, M)
     bit_mapping = utils.assign_bits_to_symbols(qam_symbols, M)
@@ -123,10 +145,9 @@ def main():
     # Generate channel data (h_data) and ISI symbols
     h_data = utils.generate_h(num_symbols)
     b = utils.calculate_b(h_data=h_data, P=P, simRuns=num_symbols)
-
-    # ISI symbol real and imaginary parts (adjust based on ISI length)
-    ISI_symbols_real = np.random.choice(x_real, size=(num_symbols,))
-    ISI_symbols_imag = np.random.choice(x_imag, size=(num_symbols,))
+ 
+    ISI_symbols_real = np.roll(x_real, shift=1)  # Shift the real parts by one to simulate ISI from neighboring symbols
+    ISI_symbols_imag = np.roll(x_imag, shift=1)  # Shift the imaginary parts similarly
 
     # Generate ISI channels for the whole data (direct processing, not batches)
     ISI_channels = torch.tensor(utils.generate_h(num_points=num_symbols * (mu - 1)), dtype=torch.float32).to(device)

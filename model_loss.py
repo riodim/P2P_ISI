@@ -103,10 +103,11 @@ class ISI_loss_function(nn.Module):
                 batch_size=batch_size,
                 device=device,
             )
-            y_target_real = torch.sum(x_real, dim=1)
-            y_target_imag = torch.sum(x_imag, dim=1)
-            y_total_real = y_signal_real + noise
-            y_total_imag = y_signal_imag + noise
+            y_target_real = x_real
+            y_target_imag = x_imag
+
+            y_total_real = y_signal_real + 1/np.sqrt(2)*noise
+            y_total_imag = y_signal_imag + 1/np.sqrt(2)*noise
 
             prob_index = sample_time
 
