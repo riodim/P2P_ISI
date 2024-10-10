@@ -8,6 +8,12 @@ from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
 import sys
 import os
+import symbol_utils as sym_utils
+
+num_symbols = 10000  # Total number of symbols
+M = 64 
+P = 10
+mu = 7
 
 def MSE_sampling_ISI(mu, b, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, ISI_channels, sample_time, T, dnn_out, device, ISI_contribution=1):
     num_ISI = np.floor(mu / 2).astype(int)
@@ -90,12 +96,12 @@ def process_file(file_path, bit_mapping, qam_symbols, h_data, b, x_real, x_imag,
     y_total_real = y_signal_real + noise_real
     y_total_imag = y_signal_imag + noise_imag
 
-    # utils.plot_scatter(y_total_real, y_total_imag)
+    # sym_utils.plot_scatter(y_total_real, y_total_imag)
 
-    transmitted_symbols = utils.nearest_qam_symbols(x_real + 1j*x_imag, qam_symbols)
-    received_symbols = utils.nearest_qam_symbols(y_total_real + 1j*y_total_imag, qam_symbols)
+    transmitted_symbols = sym_utils.nearest_qam_symbols(x_real + 1j*x_imag, qam_symbols)
+    received_symbols = sym_utils.nearest_qam_symbols(y_total_real + 1j*y_total_imag, qam_symbols)
 
-    ber = utils.calculate_ber(bit_mapping, transmitted_symbols, received_symbols)
+    ber = sym_utils.calculate_ber(bit_mapping, transmitted_symbols, received_symbols)
     return ber
 
 def main():
@@ -113,15 +119,11 @@ def main():
         ISI_contribution = 1  # Default value if no argument or any other value is passed
         output_folder = './results/data/ber/with_ISI/'
 
-    num_symbols = 10000  # Total number of symbols
-    M = 64 
-    P = 10
-    mu = 7
     device = utils.prepare_device()
 
     # Generate QAM symbols and bit mappings
-    qam_symbols = utils.generate_qam_symbols(num_symbols, M)
-    bit_mapping = utils.assign_bits_to_symbols(qam_symbols, M)
+    qam_symbols = sym_utils.generate_qam_symbols(num_symbols, M)
+    bit_mapping = sym_utils.assign_bits_to_symbols(qam_symbols, M)
 
     # Real and Imaginary parts of the QAM symbols
     x_real = np.real(qam_symbols)
