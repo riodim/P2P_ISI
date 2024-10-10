@@ -6,9 +6,10 @@ import model_loss as model_loss
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
+import sys
 import os
 
-def MSE_sampling_ISI(mu, b, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, ISI_channels, sample_time, T, dnn_out, device):
+def MSE_sampling_ISI(mu, b, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, ISI_channels, sample_time, T, dnn_out, device, ISI_contribution=1):
     num_ISI = np.floor(mu / 2).astype(int)
 
     # Handle all data directly, no batch dimension needed
@@ -29,34 +30,13 @@ def MSE_sampling_ISI(mu, b, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, IS
             y_rec_real = b * channels * x_real * (dnn_out[1750].unsqueeze(0))
             y_rec_imag = b * channels * x_imag * (dnn_out[1750].unsqueeze(0))
 
-    y_ISI_total_real = (y_ISI_real*0 + y_rec_real)
-    y_ISI_total_imag = (y_ISI_imag*0 + y_rec_imag)
+    y_ISI_total_real = (y_ISI_real*ISI_contribution + y_rec_real)
+    y_ISI_total_imag = (y_ISI_imag*ISI_contribution + y_rec_imag)
 
     return y_ISI_total_real, y_ISI_total_imag
 
-def prepare_device():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("Using device:", device)
-    device = "cpu"
-    return device
+def process_file(file_path, bit_mapping, qam_symbols, h_data, b, x_real, x_imag, ISI_symbols_real, ISI_symbols_imag, ISI_channels, mu, device, ISI_contribution = 1):
 
-def calculate_ber(bit_mapping, transmitted_symbols, received_symbols):
-    total_bit_errors = 0
-    total_bits = 0
-    for transmitted_symbol, received_symbol in zip(transmitted_symbols, received_symbols):
-        transmitted_bits = bit_mapping[transmitted_symbol]
-        received_bits = bit_mapping[received_symbol]
-        
-        # Calculate the number of bit errors
-        bit_errors = sum(t_bit != r_bit for t_bit, r_bit in zip(transmitted_bits, received_bits))
-        total_bit_errors += bit_errors
-        total_bits += len(transmitted_bits)
-    
-    ber = total_bit_errors / total_bits
-    return ber
-
-def process_file(file_path, bit_mapping, qam_symbols, h_data, b, x_real, x_imag, ISI_symbols_real, ISI_symbols_imag, ISI_channels, mu, device, P):
-    # Load 'b' as tensor
     if isinstance(b, np.ndarray):
         b = torch.tensor(b, dtype=torch.float32, device=device)
 
@@ -91,49 +71,54 @@ def process_file(file_path, bit_mapping, qam_symbols, h_data, b, x_real, x_imag,
         sample_time=mid_sample,
         T=T,
         dnn_out=dnn_out,
-        device=device
+        device=device,
+        ISI_contribution=ISI_contribution
     )
+    # M = 64
+    # delta = np.sqrt(2 * (M - 1) / 3)
+    
     noise_real = torch.randn(10000, device=device)
+    noise_real = 1/np.sqrt(2)*noise_real
+    noise_real = noise_real*np.sqrt(0.01)
+    noise_real = noise_real/b
+
     noise_imag = torch.randn(10000, device=device)
+    noise_imag = 1/np.sqrt(2)*noise_imag
+    noise_imag = noise_imag*np.sqrt(0.01)
+    noise_imag = noise_imag/b
 
-    # plt.figure(figsize=(6, 6))
-    # plt.scatter(y_signal_real, y_signal_imag, color='blue', s=10)
-    # plt.grid(True)
-    # plt.title("64-QAM Constellation Diagram")
-    # plt.xlabel("In-phase (Real)")
-    # plt.ylabel("Quadrature (Imaginary)")
-    # plt.axhline(0, color='black', linewidth=0.5)
-    # plt.axvline(0, color='black', linewidth=0.5)
-    # import pdb; pdb.set_trace()
-    # y_total_real = y_signal_real + 1/np.sqrt(2)*noise
-    # y_total_imag = y_signal_imag + 1/np.sqrt(2)*noise
-    M=64
-    delta = np.sqrt(2 * (M - 1) / 3)
-    y_total_real = y_signal_real + (1/np.sqrt(2)*noise_real)/(b*delta)
-    y_total_imag = y_signal_imag + (1/np.sqrt(2)*noise_imag)/(b*delta)
+    y_total_real = y_signal_real + noise_real
+    y_total_imag = y_signal_imag + noise_imag
 
-    received_symbols = utils.nearest_qam_symbols(y_total_real+1j*y_total_imag, qam_symbols)
+    # utils.plot_scatter(y_total_real, y_total_imag)
 
-    # plt.figure(figsize=(6, 6))
-    # plt.scatter(y_total_real, y_total_imag, color='blue', s=10)
-    # plt.grid(True)
-    # plt.title("64-QAM Constellation Diagram")
-    # plt.xlabel("In-phase (Real)")
-    # plt.ylabel("Quadrature (Imaginary)")
-    # plt.axhline(0, color='black', linewidth=0.5)
-    # plt.axvline(0, color='black', linewidth=0.5)
-    # import pdb; pdb.set_trace()
-    transmitted_symbols = utils.nearest_qam_symbols(x_real+1j*x_imag, qam_symbols)
+    transmitted_symbols = utils.nearest_qam_symbols(x_real + 1j*x_imag, qam_symbols)
+    received_symbols = utils.nearest_qam_symbols(y_total_real + 1j*y_total_imag, qam_symbols)
 
-    ber = calculate_ber(bit_mapping, transmitted_symbols, received_symbols)
+    ber = utils.calculate_ber(bit_mapping, transmitted_symbols, received_symbols)
     return ber
 
 def main():
+
+    input_folder = './results/data/'
+
+    ##python calculate_ber 0 will not include the ISI
+    ##python calculate_ber 1 will include the ISI
+    ##python calculate_ber will include the ISI
+
+    if len(sys.argv) > 1 and sys.argv[1] == '0':
+        ISI_contribution = 0  # Set to 0 if '0' is passed as the argument
+        output_folder = './results/data/ber/without_ISI/'
+    else:
+        ISI_contribution = 1  # Default value if no argument or any other value is passed
+        output_folder = './results/data/ber/with_ISI/'
+
     num_symbols = 10000  # Total number of symbols
-    M = 64  # QAM order
-    P = 10  
+    M = 64 
+    P = 10
     mu = 7
-    device = prepare_device()  
+    device = utils.prepare_device()
+
     # Generate QAM symbols and bit mappings
     qam_symbols = utils.generate_qam_symbols(num_symbols, M)
     bit_mapping = utils.assign_bits_to_symbols(qam_symbols, M)
@@ -142,7 +127,7 @@ def main():
     x_real = np.real(qam_symbols)
     x_imag = np.imag(qam_symbols)
 
-    # Generate channel data (h_data) and ISI symbols
+    # Generate channel data and ISI symbols
     h_data = utils.generate_h(num_symbols)
     b = utils.calculate_b(h_data=h_data, P=P, simRuns=num_symbols)
  
@@ -152,17 +137,14 @@ def main():
     # Generate ISI channels for the whole data (direct processing, not batches)
     ISI_channels = torch.tensor(utils.generate_h(num_points=num_symbols * (mu - 1)), dtype=torch.float32).to(device)
 
-    # Process all files in the folder ./results/data/
-    input_folder = './results/data/'
-    output_folder = './results/data/ber/'
-
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
+    
+    ber_results = []  
 
     for file_name in os.listdir(input_folder):
         file_path = os.path.join(input_folder, file_name)
         if file_name.endswith(".txt"):
-            # Calculate BER for each file
             ber = process_file(
                 file_path=file_path,
                 bit_mapping=bit_mapping,
@@ -176,17 +158,20 @@ def main():
                 ISI_channels=ISI_channels,
                 mu=mu,
                 device=device,
-                P=P
+                ISI_contribution=ISI_contribution
             )
 
-            # Save the BER result to the output folder
             output_file_path = os.path.join(output_folder, file_name)
+            ber_results.append(ber)
             with open(output_file_path, 'w') as output_file:
                 output_file.write(f"BER: {ber}\n")
+    
+    if ber_results:
+        average_ber = np.mean(ber_results)
+        print(f"Average BER for the run: {average_ber}")
 
-    print("BER calculations completed and saved to ./results/data/ber/")
+    print("BER calculations completed and saved to: ", output_folder)
     return 0
-
 
 if __name__ == "__main__":
     main()

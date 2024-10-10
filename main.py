@@ -13,14 +13,6 @@ results_folder = 'results'
 data_folder = os.path.join(results_folder, 'data')
 plots_folder = os.path.join(results_folder, 'plots')
 
-
-def prepare_device():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("Using device:", device)
-    device = "cpu"
-    return device
-
-
 def prepare_dataloader(num_symbols, M, P, batch_size, device, fixed_h):
     qam_symbols = utils.generate_qam_symbols(num_symbols, M)
 
@@ -223,7 +215,7 @@ def test(
     return total_loss / len(dataloader), pulse_per_batch
 
 def main():
-    device = prepare_device()
+    device = utils.prepare_device()
 
     # Define hyperparameters and constants
     num_points = 3501

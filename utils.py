@@ -76,13 +76,11 @@ def MSE_sampling_ISI(mu, b, x_real, x_imag, x_ISI_real, x_ISI_imag, channels, IS
         else:
             y_rec_real = b*channels*x_real*(dnn_out[:,sample_time].unsqueeze(1))
             y_rec_imag = b*channels*x_imag*(dnn_out[:,sample_time].unsqueeze(1))
-    # import pdb
-    # pdb.set_trace()
+
     y_ISI_total_real = y_ISI_real + y_rec_real
     y_ISI_total_imag = y_ISI_imag + y_rec_imag
  
     return y_ISI_total_real, y_ISI_total_imag
-
 
 """
 Calculates the pmf given the distribution of the sync error and depending on the 
@@ -246,3 +244,32 @@ def nearest_qam_symbols(received_symbols, qam_symbols):
         nearest_symbols.append(nearest_symbol)
 
     return nearest_symbols
+
+def plot_scatter(x_axis, y_axis):
+    plt.figure(figsize=(6, 6))
+    plt.scatter(x_axis, y_axis, color='blue', s=10)
+    plt.grid(True)
+    plt.axhline(0, color='black', linewidth=0.5)
+    plt.axvline(0, color='black', linewidth=0.5)
+    import pdb; pdb.set_trace()
+
+def calculate_ber(bit_mapping, transmitted_symbols, received_symbols):
+    total_bit_errors = 0
+    total_bits = 0
+    for transmitted_symbol, received_symbol in zip(transmitted_symbols, received_symbols):
+        transmitted_bits = bit_mapping[transmitted_symbol]
+        received_bits = bit_mapping[received_symbol]
+        
+        # Calculate the number of bit errors
+        bit_errors = sum(t_bit != r_bit for t_bit, r_bit in zip(transmitted_bits, received_bits))
+        total_bit_errors += bit_errors
+        total_bits += len(transmitted_bits)
+    
+    ber = total_bit_errors / total_bits
+    return ber
+
+def prepare_device():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Using device:", device)
+    device = "cpu"
+    return device
