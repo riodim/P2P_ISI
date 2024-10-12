@@ -1,0 +1,19 @@
+Benchmark roll_off plots
+RC and EXP on top of each other with multiple 
+
+Loss per epoch /batches with multiple learning steps (MSE) 
+(with different learning step)
+
+
+P = 1 & P = 10 for each pulse (SIM, RC, EXP) (2 plots)
+
+0.01 = 30dB
+dB 0 - 40 step 5 (x-axis) 
+   1 
+   10logx=20  x=0.01
+2 BM and 3 best of  (M = 64) 
+  
+  
+Do the same for M = 16 && M = 256 (no training)
+  
+Fasma

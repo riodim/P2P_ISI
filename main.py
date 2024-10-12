@@ -201,7 +201,7 @@ def main():
     for M_loss, M_sym, M_power, M_bandwidth in product(M_loss_values, M_sym_values, M_power_values, M_bandwidth_values):
         print(f"Running with M_loss={M_loss}, M_sym={M_sym}, M_power={M_power}, M_bandwidth={M_bandwidth}")
         dataloader = prepare_dataloader(
-            num_symbols=10000,
+            num_symbols=num_symbols,
             M=64,
             P=P,
             batch_size=batch_size,

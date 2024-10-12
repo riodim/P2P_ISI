@@ -4,6 +4,7 @@ import numpy as np
 import utils as utils
 import model_loss as model_loss
 import torch.optim as optim
+import pulse_generation as pulse_gen
 from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
 import sys
@@ -60,8 +61,23 @@ def process_file(file_path, bit_mapping, qam_symbols, h_data, b, x_real, x_imag,
             except ValueError:
                 continue  # Skip metadata lines
 
+    RC, EXP = pulse_gen.RC_pulses_create()
     dnn_out = torch.tensor(np.array(dnn_out), dtype=torch.float32).to(device)
 
+    cur_pulse = torch.nn.functional.pad(dnn_out, (0, 6500))
+    fft_cur_pulse = torch.abs(torch.fft.fft(cur_pulse))
+    
+    cur_pulse_rc = torch.nn.functional.pad(RC[0], (0, 6500))
+    fft_cur_pulse_rc = torch.abs(torch.fft.fft(cur_pulse_rc))
+    
+    cur_pulse_exp = torch.nn.functional.pad(EXP[0], (0, 6500))
+    fft_cur_pulse_exp = torch.abs(torch.fft.fft(cur_pulse_exp))
+       
+    plt.figure()
+    plt.plot(fft_cur_pulse[0:40])
+    plt.plot(fft_cur_pulse_rc[0:40])
+    plt.plot(fft_cur_pulse_exp[0:40])
+    # import pdb; pdb.set_trace()
     mid_sample = np.floor(len(dnn_out) / 2).astype(int)
     T = np.floor(np.floor(len(dnn_out) / mu) / 2).astype(int)
 
@@ -83,12 +99,12 @@ def process_file(file_path, bit_mapping, qam_symbols, h_data, b, x_real, x_imag,
     # M = 64
     # delta = np.sqrt(2 * (M - 1) / 3)
     
-    noise_real = torch.randn(10000, device=device)
+    noise_real = torch.randn(num_symbols, device=device)
     noise_real = 1/np.sqrt(2)*noise_real
     noise_real = noise_real*np.sqrt(0.01)
     noise_real = noise_real/b
 
-    noise_imag = torch.randn(10000, device=device)
+    noise_imag = torch.randn(num_symbols, device=device)
     noise_imag = 1/np.sqrt(2)*noise_imag
     noise_imag = noise_imag*np.sqrt(0.01)
     noise_imag = noise_imag/b

@@ -139,15 +139,6 @@ def process_all_files_in_folder(input_folder, output_folder):
             file_path = os.path.join(input_folder, filename)
             plot_and_save_pulse(file_path, output_folder)
 
-
-def plot_scatter(x_axis, y_axis):
-    plt.figure(figsize=(6, 6))
-    plt.scatter(x_axis, y_axis, color='blue', s=10)
-    plt.grid(True)
-    plt.axhline(0, color='black', linewidth=0.5)
-    plt.axvline(0, color='black', linewidth=0.5)
-    import pdb; pdb.set_trace()
-
 def prepare_device():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
