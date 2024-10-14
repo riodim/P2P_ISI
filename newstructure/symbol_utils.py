@@ -5,6 +5,7 @@ import torch
 import matplotlib.pyplot as plt
 import os
 
+
 def generate_qam_symbols(num_symbols, M):
     # Calculate the number of points along each axis (sqrt_M should be an integer)
     sqrt_M = int(np.sqrt(M))
