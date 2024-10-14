@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import torch
 import torch.nn as nn
 import numpy as np
@@ -68,6 +65,7 @@ class ISI_loss_function(nn.Module):
         M_bandwidth,
         pul_power,
         freq_resp,
+        roll_off,
         test_bool=False,
     ):
         b = batch[:,0]
@@ -111,8 +109,6 @@ class ISI_loss_function(nn.Module):
 
             prob_index = sample_time
 
-            # loss = loss + prob[sample_time] * (torch.mean(torch.square(y_total_real - y_target_real))  + torch.mean(torch.square(y_total_imag - y_target_imag)))
-
             # Calculate the loss using the adjusted prob index
             loss = loss + prob[0,prob_index] * (torch.mean(torch.square(y_total_real - y_target_real))  + torch.mean(torch.square(y_total_imag - y_target_imag)))
 
@@ -121,7 +117,7 @@ class ISI_loss_function(nn.Module):
                 loss * M_loss
                 + self.calculate_loss_sym(M_sym, mid_sample, dnn_out)
                 + self.calculate_loss_power(M_power, num_points, pul_power, dnn_out)
-                + self.calculate_loss_bandwidth(M_bandwidth, fft_cur_pulse, freq_resp)
+                + self.calculate_loss_bandwidth(M_bandwidth, fft_cur_pulse, freq_resp, roll_off)
             )
 
         return loss
@@ -140,8 +136,8 @@ class ISI_loss_function(nn.Module):
         )
         return loss_power
 
-    def calculate_loss_bandwidth(self, M_bandwidth, fft_cur_pulse, freq_resp):
+    def calculate_loss_bandwidth(self, M_bandwidth, fft_cur_pulse, freq_resp, roll_off):
         loss_bandwidth = M_bandwidth * torch.mean(
-            torch.square(fft_cur_pulse[:, 12:5001] - freq_resp)
+            torch.square(fft_cur_pulse[:, utils.get_value_for_roll_off(roll_off):5001] - freq_resp)
         )
         return loss_bandwidth

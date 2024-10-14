@@ -1,5 +1,3 @@
-import time
-import torch
 import numpy as np
 import utils as utils
 import symbol_utils as sym_utils
@@ -8,21 +6,23 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
 from itertools import product
-import os
+import os, csv, time, torch
 
 results_folder = 'results'
 data_folder = os.path.join(results_folder, 'data')
 plots_folder = os.path.join(results_folder, 'plots')
 
 num_points = 3501
+M=64
 mu = 7
 P = 10
 batch_size = 100
-learning_rate = 0.001 #0.003
+learning_rate = 0.001 
 num_epochs = 3
 freq_resp = 0.2
 pul_power = 0.1382
 num_symbols = 10000
+roll_off = 0.3
 
 def prepare_dataloader(num_symbols, M, P, batch_size, device):
     qam_symbols = sym_utils.generate_qam_symbols(num_symbols, M)
@@ -65,9 +65,12 @@ def train(
     freq_resp,
     batch_size,
     scheduler,
-    ISI_channels
+    ISI_channels,
+    model_save_path="./model/trained_model_0,3.pth",
+    loss_save_interval=1,  
+    loss_save_path="./model/loss_data_0,3.csv" 
 ):
-    
+    loss_data = []
     for epoch in range(num_epochs):
         start_time = time.time()  # Start the timer for the epoch
         total_loss = 0
@@ -105,6 +108,7 @@ def train(
                 M_bandwidth=M_bandwidth,
                 pul_power=pul_power,
                 freq_resp=freq_resp,
+                roll_off = roll_off
             )
             loss = loss.mean()
 
@@ -112,11 +116,22 @@ def train(
             optimizer.step()
             print(f" Loss: {loss.item()}")
             total_loss += loss.item()
+            
+            if (batch_idx + 1) % loss_save_interval == 0:
+                loss_data.append([epoch + 1, batch_idx + 1, loss.item()])  # Add to list
 
         scheduler.step()
         epoch_time = time.time() - start_time
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item()}, Time: {epoch_time:.2f} seconds")
 
+    # Save the trained model's state_dict
+    torch.save(model.state_dict(), model_save_path)
+    print(f"Model saved to {model_save_path}")
+    with open(loss_save_path, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Epoch", "Batch", "Loss"])  # Write header
+        writer.writerows(loss_data)  # Write loss data
+    print(f"Loss data saved to {loss_save_path}")
 
 def test(
     model,
@@ -141,7 +156,7 @@ def test(
     index = -1
     pulse_per_batch = torch.zeros(len(dataloader), num_points)
 
-    with torch.no_grad():  # Disable gradient calculation for testing
+    with torch.no_grad(): 
         for batch_idx, batch in enumerate(dataloader):
             index = index + 1
 
@@ -151,8 +166,8 @@ def test(
             output = model(batch)
             pulse_per_batch[index, :] = torch.mean(output,dim=0)
 
-            x_real = batch[:, 2]  # Real parts of the symbols
-            x_imag = batch[:, 3]  # Imaginary parts of the symbols
+            x_real = batch[:, 2]  
+            x_imag = batch[:, 3] 
 
             # Apply roll operation to simulate ISI from neighboring symbols
             ISI_symbols_real = torch.stack([torch.roll(x_real, shifts=i, dims=0) for i in range(1, mu)], dim=1)
@@ -179,6 +194,7 @@ def test(
                 pul_power=pul_power,
                 freq_resp=freq_resp,
                 test_bool=True,
+                roll_off = roll_off
             )
 
             total_loss += loss.item()
@@ -193,7 +209,7 @@ def main():
     os.makedirs(data_folder, exist_ok=True)
     os.makedirs(plots_folder, exist_ok=True)
 
-    M_loss_values = [10]
+    M_loss_values = [5]
     M_sym_values = [4.3*10**3]
     M_power_values = [9*10**3]
     M_bandwidth_values = [10**1.35]
@@ -202,14 +218,14 @@ def main():
         print(f"Running with M_loss={M_loss}, M_sym={M_sym}, M_power={M_power}, M_bandwidth={M_bandwidth}")
         dataloader = prepare_dataloader(
             num_symbols=num_symbols,
-            M=64,
+            M=M,
             P=P,
             batch_size=batch_size,
             device=device,
         )
         model, optimizer, scheduler = prepare_model(
-            input_size=4,  # Assuming your input to the model is 4-dimensional
-            output_size=num_points,  # The model should output 4-dimensional vectors
+            input_size=4,  
+            output_size=num_points, 
             hidden_layers=[256, 256, 256],
             learning_rate=learning_rate,
             device=device,
