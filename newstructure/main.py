@@ -70,17 +70,18 @@ def main():
         pulse_new[0:mid_point] = data_pulse_last
         pulse_new[mid_point+1:config.num_points] = data_pulse_last.flip(0)
         
-        filename = f"pulse_Mloss{M_loss}_Msym_{M_sym}_Mpower_{M_power}_Mbandwidth_{M_bandwidth}_Loss_{average_loss}.txt"
+        filename = f"pulse_M{config.M}_Mloss{M_loss}_Msym_{M_sym}_Mpower_{M_power}_Mbandwidth_{M_bandwidth}_Loss_{average_loss}.txt"
         u.save_results_to_file(filename, M_loss, M_sym, M_power, M_bandwidth, pulse_new, data_folder)
                             
     u.process_all_files_in_folder(data_folder, plots_folder)
-    ber.calculate_ber()
+    # ber.calculate_ber()
 
 if __name__ == "__main__":
-    roll_off_values = [0.1]
-    for roll_off in roll_off_values:
-        print(f"Running training for roll_off={roll_off}")
+    M_values = [256]
+    
+    for M_value in M_values:
+        print(f"Running training for M={M_value}")
         
-        config.roll_off = roll_off
+        config.M = M_value
         
         main()

@@ -101,7 +101,7 @@ class ISI_loss_function(nn.Module):
             prob_index = sample_time
 
             # Calculate the loss using the adjusted prob index
-            loss = loss + config.prob[0,prob_index] * (torch.mean(torch.square(y_total_real - y_target_real))  + torch.mean(torch.square(y_total_imag - y_target_imag)))
+            loss = loss + config.prob[1,prob_index] * (torch.mean(torch.square(y_total_real - y_target_real))  + torch.mean(torch.square(y_total_imag - y_target_imag)))
 
         if not test_bool:
             loss = (

@@ -6,6 +6,7 @@ def test(
     dataloader,
     loss_function,
     M_loss):
+    
     model.eval() 
     
     total_loss = 0

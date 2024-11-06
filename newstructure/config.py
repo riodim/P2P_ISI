@@ -24,7 +24,7 @@ bit_mapping = sym_u.assign_bits_to_symbols(qam_symbols, M)
 x_real = np.real(qam_symbols)
 x_imag = np.imag(qam_symbols)
 
-M_loss_values = [4]
+M_loss_values = [8]
 M_sym_values = [4.3*10**3]
 M_power_values = [9*10**3]
 M_bandwidth_values = [10**1.35]
@@ -40,3 +40,5 @@ device = u.prepare_device()
 ISI_channels = torch.tensor(u.generate_h(num_points=batch_size * (mu - 1)), dtype=torch.float32).view(batch_size, mu - 1)
 
 loss_save_interval=1
+
+x = 0.01
